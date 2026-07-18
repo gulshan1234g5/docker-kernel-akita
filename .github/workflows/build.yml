@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git curl clang llvm lld flex bison bc python3 libssl-dev repo libelf-dev
+        sudo apt-get install -y git curl clang llvm lld flex bison bc python3 libssl-dev repo libelf-dev gcc-aarch64-linux-gnu
 
     - name: Sync kernel source
       run: |
@@ -33,12 +33,9 @@ jobs:
     - name: Merge Docker configs
       run: |
         cd kernel/common
-        # Generate .config from defconfig
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
-        # Merge our Docker config fragment
         cp ../../docker_fragment.config .
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
-        # Create cleaned-up defconfig for bazel
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- savedefconfig
         cp defconfig arch/arm64/configs/gki_defconfig
 
