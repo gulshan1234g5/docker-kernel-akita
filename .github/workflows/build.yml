@@ -30,18 +30,16 @@ jobs:
         cd kernel
         curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s
 
-    - name: Merge Docker configs using merge_config.sh (no duplicates)
+    - name: Merge Docker configs
       run: |
         cd kernel/common
-        # Copy our fragment from checkout
+        # Generate .config from defconfig
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
+        # Merge our Docker config fragment
         cp ../../docker_fragment.config .
-        # Properly merge - only adds truly missing configs, no duplicates
-        ARCH=arm64 SCRIPT=./scripts/kconfig/merge_config.sh \
-          make O=. merge_config.config \
-          ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
-          ./arch/arm64/configs/gki_defconfig ./docker_fragment.config
-        # Update defconfig (only needed lines get added)
-        ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make savedefconfig
+        ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
+        # Create cleaned-up defconfig for bazel
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- savedefconfig
         cp defconfig arch/arm64/configs/gki_defconfig
 
     - name: Build kernel
@@ -55,13 +53,10 @@ jobs:
         cd kernel
         git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git
         
-        # Find and copy Image
         find out -name "Image" -exec cp {} AnyKernel3/Image \; 2>/dev/null || true
         ls -la AnyKernel3/Image 2>/dev/null || echo "WARNING: Image not found"
         
-        # Create anykernel.sh
         cat > AnyKernel3/anykernel.sh << 'AKSH'
-        ### AnyKernel3 Ramdisk Mod Script
         properties() { '
         kernel.string=Docker Kernel for Pixel 8a (KernelSU)
         do.devicecheck=0
