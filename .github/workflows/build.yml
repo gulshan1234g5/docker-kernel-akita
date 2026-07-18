@@ -22,13 +22,11 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1 --depth=1
         repo sync -c --no-tags -j$(nproc)
 
-    - name: Install KernelSU-Next (main branch, no depth issues)
+    - name: Install KernelSU-Next (dev branch)
       run: |
         cd kernel
-        git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b main
-        cd KernelSU-Next
-        chmod +x kernel/setup.sh
-        cd ../common
+        git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
+        cd common
         bash ../KernelSU-Next/kernel/setup.sh
 
     - name: Apply SuSFS
@@ -56,6 +54,7 @@ jobs:
         cd kernel
         git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git
         cp common/arch/arm64/boot/Image AnyKernel3/Image 2>/dev/null || echo "Image not found"
+        ls -la AnyKernel3/Image
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
         kernel.string=Docker Kernel Pixel 8a (KSU-Next + SuSFS)
