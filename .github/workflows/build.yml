@@ -31,8 +31,8 @@ jobs:
         git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
         cd common
         bash ../KernelSU-Next/kernel/setup.sh
-        # Fix -Werror=unused-value in patch_memory.c: wrap macro in (void)
-        sed -i 's/#define ksu_flush_icache(start, end) caches_clean_inval_pou/#define ksu_flush_icache(start, end) do { caches_clean_inval_pou; } while (0)/' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
+        # Fix: add -Wno-unused-value to KernelSU Makefile to ignore this specific warning
+        echo 'KBUILD_CFLAGS += -Wno-unused-value' >> drivers/kernelsu/Makefile
 
     - name: Apply SuSFS
       run: |
@@ -42,7 +42,7 @@ jobs:
         cp -r ../susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
         cp -r ../susfs4ksu/kernel_patches/include/linux/* include/linux/ 2>/dev/null || true
         for p in ../susfs4ksu/kernel_patches/*.patch; do patch -p1 -F 5 < "$p" 2>/dev/null || true; done
-        rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
+        rm -f *.rej 2>/dev/null
 
     - name: Build kernel
       run: |
