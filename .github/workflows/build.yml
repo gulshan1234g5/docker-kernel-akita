@@ -30,9 +30,25 @@ jobs:
         cd kernel
         curl -LSs https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh | bash -s next
 
-    - name: Add Docker configs (only truly missing ones)
+    - name: Apply SuSFS (with reject handling) + Docker configs
       run: |
-        cd kernel/common
+        cd kernel
+        # Clone SuSFS
+        git clone --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+        cd common
+        
+        # Apply SuSFS patches with high fuzz factor
+        cp -r ../susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
+        cp -r ../susfs4ksu/kernel_patches/include/linux/* include/linux/ 2>/dev/null || true
+        
+        # Apply patches, skip failing hunks (-f for force continue)
+        patch -p1 -F 5 < ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
+        patch -p1 -F 5 < ../susfs4ksu/kernel_patches/60_scope-minimized_manual_hooks.patch || true
+        
+        # Remove .rej files (already handled by our config)
+        rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
+        
+        # Add Docker configs (only truly missing)
         cp ../../docker_fragment.config .
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
@@ -56,7 +72,7 @@ jobs:
         
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
-        kernel.string=Docker Kernel for Pixel 8a (KSU-Next)
+        kernel.string=Docker Kernel for Pixel 8a (KSU-Next + SuSFS)
         do.devicecheck=0
         do.modules=0
         do.systemless=0
