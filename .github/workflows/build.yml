@@ -11,9 +11,6 @@ jobs:
     timeout-minutes: 180
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -25,12 +22,16 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1 --depth=1
         repo sync -c --no-tags -j$(nproc)
 
-    - name: Install KernelSU-Next
+    - name: Install KernelSU-Next (main branch, no depth issues)
       run: |
         cd kernel
-        curl -LSs https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh | bash -s next
+        git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b main
+        cd KernelSU-Next
+        chmod +x kernel/setup.sh
+        cd ../common
+        bash ../KernelSU-Next/kernel/setup.sh
 
-    - name: Apply SuSFS + Docker configs
+    - name: Apply SuSFS
       run: |
         cd kernel
         git clone --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
@@ -41,16 +42,13 @@ jobs:
         patch -p1 -F 5 < ../susfs4ksu/kernel_patches/60_scope-minimized_manual_hooks.patch || true
         rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
 
-    - name: Build kernel (direct make, no bazel)
+    - name: Build kernel
       run: |
         cd kernel/common
-        # Generate config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
-        # Apply Docker configs
         cp ../../docker_fragment.config .
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
-        # Build kernel Image directly
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image -j$(nproc)
 
     - name: Create AnyKernel3 zip
@@ -58,8 +56,6 @@ jobs:
         cd kernel
         git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git
         cp common/arch/arm64/boot/Image AnyKernel3/Image 2>/dev/null || echo "Image not found"
-        ls -la AnyKernel3/Image
-        
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
         kernel.string=Docker Kernel Pixel 8a (KSU-Next + SuSFS)
@@ -80,7 +76,6 @@ jobs:
         split_boot
         flash_boot
         AKSH
-        
         cd AnyKernel3
         zip -r9 ../Docker-Kernel-akita.zip . -x "*.git*"
 
