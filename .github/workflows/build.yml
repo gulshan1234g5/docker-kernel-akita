@@ -31,6 +31,8 @@ jobs:
         git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
         cd common
         bash ../KernelSU-Next/kernel/setup.sh
+        # Fix -Werror unused-value in patch_memory.c
+        sed -i 's/^\t\([a-zA-Z0-9_]*\);$/\t(void)\1;/g' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
 
     - name: Apply SuSFS
       run: |
@@ -39,8 +41,9 @@ jobs:
         cd common
         cp -r ../susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
         cp -r ../susfs4ksu/kernel_patches/include/linux/* include/linux/ 2>/dev/null || true
-        patch -p1 -F 5 < ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
-        patch -p1 -F 5 < ../susfs4ksu/kernel_patches/60_scope-minimized_manual_hooks.patch || true
+        for p in ../susfs4ksu/kernel_patches/*.patch; do
+          patch -p1 -F 5 < "$p" 2>/dev/null || true
+        done
         rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
 
     - name: Build kernel
