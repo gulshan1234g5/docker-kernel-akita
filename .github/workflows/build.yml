@@ -11,6 +11,9 @@ jobs:
     timeout-minutes: 180
     
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -42,19 +45,19 @@ jobs:
 
     - name: Build kernel
       run: |
-        cd kernel/common
+        ls -la ${{ github.workspace }}/docker_fragment.config
+        cd ${{ github.workspace }}/kernel/common
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
-        cp ../../docker_fragment.config .
+        cp ${{ github.workspace }}/docker_fragment.config .
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image -j$(nproc)
 
     - name: Create AnyKernel3 zip
       run: |
-        cd kernel
+        cd ${{ github.workspace }}/kernel
         git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git
         cp common/arch/arm64/boot/Image AnyKernel3/Image 2>/dev/null || echo "Image not found"
-        ls -la AnyKernel3/Image
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
         kernel.string=Docker Kernel Pixel 8a (KSU-Next + SuSFS)
@@ -83,5 +86,5 @@ jobs:
       if: always()
       with:
         name: docker-kernel-akita
-        path: kernel/Docker-Kernel-akita.zip
+        path: ${{ github.workspace }}/kernel/Docker-Kernel-akita.zip
         retention-days: 30
