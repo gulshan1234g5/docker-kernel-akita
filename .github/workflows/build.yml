@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     
     steps:
     - name: Checkout
@@ -44,19 +44,24 @@ jobs:
         cd kernel
         curl -LSs https://raw.githubusercontent.com/pershoot/KernelSU-Next/dev-susfs/kernel/setup.sh | bash -s dev-susfs
 
-    - name: Add Docker configs
+    - name: Prepare build
       run: |
         cd kernel/common
         sed -i '/"protected_exports_list"/d' BUILD.bazel
         rm -f android/abi_gki_protected_exports_* 50_add_susfs_in_gki-android14-6.1.patch
-        cat >> arch/arm64/configs/gki_defconfig << 'EOF'
+        git config user.email "builder@local"
+        git config user.name "Builder"
+        git add -A
+        git commit -m "Docker kernel" || true
+
+    - name: Create Docker config fragment
+      run: |
+        cd kernel/common
+        cat > docker_fragment.config << 'EOF'
         CONFIG_NAMESPACES=y
         CONFIG_PID_NS=y
-        CONFIG_UTS_NS=y
         CONFIG_IPC_NS=y
-        CONFIG_NET_NS=y
         CONFIG_USER_NS=y
-        CONFIG_CGROUPS=y
         CONFIG_CGROUP_DEVICE=y
         CONFIG_CGROUP_PIDS=y
         CONFIG_CGROUP_SCHED=y
@@ -75,19 +80,44 @@ jobs:
         CONFIG_POSIX_MQUEUE=y
         CONFIG_DEVTMPFS=y
         EOF
-        git config user.email "builder@local"
-        git config user.name "Builder"
-        git add -A
-        git commit -m "Docker kernel" || true
+
+    - name: Modify BUILD.bazel for Docker fragment
+      run: |
+        cd kernel/common
+        # Add post_defconfig_fragment for Docker configs
+        python3 -c "
+        import re
+        with open('BUILD.bazel', 'r') as f:
+            content = f.read()
+        
+        # Find kernel_build rule and add post_defconfig_fragment
+        # This adds our Docker configs after the base defconfig is processed
+        docker_fragment = '''
+            post_defconfig_fragments = [\"docker_fragment.config\"],
+        '''
+        
+        # Insert after build_config line in kernel_build
+        content = re.sub(
+            r'(build_config = \"common/build\.config\.gki\.aarch64\",)',
+            r'\1' + docker_fragment,
+            content,
+            count=1
+        )
+        
+        with open('BUILD.bazel', 'w') as f:
+            f.write(content)
+        "
+        echo "BUILD.bazel modified with Docker fragment"
 
     - name: Build kernel
+      working-directory: kernel
       run: |
-        cd kernel
         tools/bazel clean --expunge
         tools/bazel run --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: docker-kernel-akita
         path: kernel/out/dist/
