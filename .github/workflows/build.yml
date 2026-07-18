@@ -30,7 +30,7 @@ jobs:
         cd kernel
         curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s
 
-    - name: Merge Docker configs
+    - name: Merge Docker configs + clean tree
       run: |
         cd kernel/common
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
@@ -38,6 +38,8 @@ jobs:
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- savedefconfig
         cp defconfig arch/arm64/configs/gki_defconfig
+        # Clean tree so bazel doesn't complain
+        make mrproper
 
     - name: Build kernel
       run: |
