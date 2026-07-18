@@ -25,14 +25,14 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1 --depth=1
         repo sync -c --no-tags -j$(nproc)
 
-    - name: Install KernelSU-Next + fix -Werror
+    - name: Install KernelSU-Next
       run: |
         cd kernel
         git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
         cd common
         bash ../KernelSU-Next/kernel/setup.sh
-        # Fix: add -Wno-unused-value to KernelSU Makefile to ignore this specific warning
-        echo 'KBUILD_CFLAGS += -Wno-unused-value' >> drivers/kernelsu/Makefile
+        # Directly fix the macro in the source file - replace with no-op
+        sed -i 's/caches_clean_inval_pou/(void)caches_clean_inval_pou/' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
 
     - name: Apply SuSFS
       run: |
@@ -51,7 +51,7 @@ jobs:
         cp ${{ github.workspace }}/docker_fragment.config .
         ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image -j$(nproc)
+        make KCFLAGS="-Wno-unused-value" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image -j$(nproc)
 
     - name: Create AnyKernel3 zip
       run: |
