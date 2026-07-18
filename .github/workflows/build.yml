@@ -54,60 +54,38 @@ jobs:
         git add -A
         git commit -m "Docker kernel" || true
 
-    - name: Create Docker config fragment
+    - name: Copy Docker fragment
       run: |
-        cd kernel/common
-        cat > docker_fragment.config << 'EOF'
-        CONFIG_NAMESPACES=y
-        CONFIG_PID_NS=y
-        CONFIG_IPC_NS=y
-        CONFIG_USER_NS=y
-        CONFIG_CGROUP_DEVICE=y
-        CONFIG_CGROUP_PIDS=y
-        CONFIG_CGROUP_SCHED=y
-        CONFIG_CGROUP_FREEZER=y
-        CONFIG_CGROUP_CPUACCT=y
-        CONFIG_MEMCG=y
-        CONFIG_MEMCG_SWAP=y
-        CONFIG_BLK_CGROUP=y
-        CONFIG_OVERLAY_FS=y
-        CONFIG_VETH=y
-        CONFIG_BRIDGE=y
-        CONFIG_BRIDGE_NETFILTER=y
-        CONFIG_IP_NF_TARGET_MASQUERADE=y
-        CONFIG_SECCOMP=y
-        CONFIG_SECCOMP_FILTER=y
-        CONFIG_POSIX_MQUEUE=y
-        CONFIG_DEVTMPFS=y
-        EOF
+        cp docker_fragment.config kernel/common/docker_fragment.config
 
-    - name: Modify BUILD.bazel for Docker fragment
+    - name: Modify BUILD.bazel
       run: |
         cd kernel/common
-        # Add post_defconfig_fragment for Docker configs
-        python3 -c "
+        python3 << 'PYEOF'
         import re
+        
         with open('BUILD.bazel', 'r') as f:
             content = f.read()
         
-        # Find kernel_build rule and add post_defconfig_fragment
-        # This adds our Docker configs after the base defconfig is processed
-        docker_fragment = '''
-            post_defconfig_fragments = [\"docker_fragment.config\"],
-        '''
+        # Find the kernel_aarch64 target and add post_defconfig_fragments
+        # Look for the kernel_build rule
+        pattern = r'(kernel_build\s*\(\s*\n\s*name\s*=\s*"kernel_aarch64",)'
         
-        # Insert after build_config line in kernel_build
-        content = re.sub(
-            r'(build_config = \"common/build\.config\.gki\.aarch64\",)',
-            r'\1' + docker_fragment,
-            content,
-            count=1
-        )
+        replacement = r'\1\n        post_defconfig_fragments = ["docker_fragment.config"],'
+        
+        new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+        
+        if new_content == content:
+            # Try alternative pattern
+            pattern2 = r'(build_config\s*=\s*"common/build\.config\.gki\.aarch64",)'
+            replacement2 = r'\1\n        post_defconfig_fragments = ["docker_fragment.config"],'
+            new_content = re.sub(pattern2, replacement2, content, count=1)
         
         with open('BUILD.bazel', 'w') as f:
-            f.write(content)
-        "
-        echo "BUILD.bazel modified with Docker fragment"
+            f.write(new_content)
+        
+        print("BUILD.bazel updated with Docker fragment")
+        PYEOF
 
     - name: Build kernel
       working-directory: kernel
