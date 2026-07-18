@@ -40,28 +40,29 @@ jobs:
         patch -p1 -F 5 < ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
         patch -p1 -F 5 < ../susfs4ksu/kernel_patches/60_scope-minimized_manual_hooks.patch || true
         rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
-        cp ../../docker_fragment.config .
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
-        ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- savedefconfig
-        cp defconfig arch/arm64/configs/gki_defconfig
-        make mrproper
 
-    - name: Build kernel (no LTO to avoid OOM)
+    - name: Build kernel (direct make, no bazel)
       run: |
-        cd kernel
-        tools/bazel clean --expunge
-        tools/bazel run --config=fast --config=stamp --lto=none //common:kernel_aarch64_dist
+        cd kernel/common
+        # Generate config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
+        # Apply Docker configs
+        cp ../../docker_fragment.config .
+        ./scripts/kconfig/merge_config.sh -O . .config docker_fragment.config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+        # Build kernel Image directly
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image -j$(nproc)
 
     - name: Create AnyKernel3 zip
       run: |
         cd kernel
         git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git
-        find out -name "Image" -exec cp {} AnyKernel3/Image \; 2>/dev/null || true
-        ls -la AnyKernel3/Image 2>/dev/null || echo "WARNING: Image not found"
+        cp common/arch/arm64/boot/Image AnyKernel3/Image 2>/dev/null || echo "Image not found"
+        ls -la AnyKernel3/Image
+        
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
-        kernel.string=Docker Kernel for Pixel 8a (KSU-Next + SuSFS)
+        kernel.string=Docker Kernel Pixel 8a (KSU-Next + SuSFS)
         do.devicecheck=0
         do.modules=0
         do.systemless=0
@@ -79,6 +80,7 @@ jobs:
         split_boot
         flash_boot
         AKSH
+        
         cd AnyKernel3
         zip -r9 ../Docker-Kernel-akita.zip . -x "*.git*"
 
@@ -87,7 +89,5 @@ jobs:
       if: always()
       with:
         name: docker-kernel-akita
-        path: |
-          kernel/out/dist/
-          kernel/Docker-Kernel-akita.zip
+        path: kernel/Docker-Kernel-akita.zip
         retention-days: 30
