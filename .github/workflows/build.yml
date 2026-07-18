@@ -25,14 +25,14 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1 --depth=1
         repo sync -c --no-tags -j$(nproc)
 
-    - name: Install KernelSU-Next (dev branch)
+    - name: Install KernelSU-Next + fix -Werror
       run: |
         cd kernel
         git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
         cd common
         bash ../KernelSU-Next/kernel/setup.sh
-        # Fix -Werror unused-value in patch_memory.c
-        sed -i 's/^\t\([a-zA-Z0-9_]*\);$/\t(void)\1;/g' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
+        # Fix -Werror=unused-value in patch_memory.c: wrap macro in (void)
+        sed -i 's/#define ksu_flush_icache(start, end) caches_clean_inval_pou/#define ksu_flush_icache(start, end) do { caches_clean_inval_pou; } while (0)/' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
 
     - name: Apply SuSFS
       run: |
@@ -41,14 +41,11 @@ jobs:
         cd common
         cp -r ../susfs4ksu/kernel_patches/fs/* fs/ 2>/dev/null || true
         cp -r ../susfs4ksu/kernel_patches/include/linux/* include/linux/ 2>/dev/null || true
-        for p in ../susfs4ksu/kernel_patches/*.patch; do
-          patch -p1 -F 5 < "$p" 2>/dev/null || true
-        done
+        for p in ../susfs4ksu/kernel_patches/*.patch; do patch -p1 -F 5 < "$p" 2>/dev/null || true; done
         rm -f *.rej fs/*.rej include/linux/*.rej 2>/dev/null
 
     - name: Build kernel
       run: |
-        ls -la ${{ github.workspace }}/docker_fragment.config
         cd ${{ github.workspace }}/kernel/common
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- gki_defconfig
         cp ${{ github.workspace }}/docker_fragment.config .
