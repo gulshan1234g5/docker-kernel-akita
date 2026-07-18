@@ -25,22 +25,12 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1 --depth=1
         repo sync -c --no-tags -j$(nproc)
 
-    - name: Apply KernelSU-Next + SuSFS (same as WildKernel r7)
+    - name: Install KernelSU-Next
       run: |
         cd kernel
-        # KernelSU-Next (not basic KernelSU)
         curl -LSs https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh | bash -s next
-        
-        # SuSFS patches
-        git clone --depth 1 https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
-        cd common
-        cp ../susfs4ksu/kernel_patches/fs/* fs/
-        cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
-        patch -p1 -F 3 < ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
-        patch -p1 -F 3 < ../susfs4ksu/kernel_patches/60_scope-minimized_manual_hooks.patch || true
-        cd ..
 
-    - name: Add Docker configs (only missing ones)
+    - name: Add Docker configs (only truly missing ones)
       run: |
         cd kernel/common
         cp ../../docker_fragment.config .
@@ -66,7 +56,7 @@ jobs:
         
         cat > AnyKernel3/anykernel.sh << 'AKSH'
         properties() { '
-        kernel.string=Docker Kernel for Pixel 8a (KernelSU-Next + SuSFS)
+        kernel.string=Docker Kernel for Pixel 8a (KSU-Next)
         do.devicecheck=0
         do.modules=0
         do.systemless=0
