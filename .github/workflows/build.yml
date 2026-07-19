@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git curl clang llvm lld flex bison bc python3 libssl-dev repo libelf-dev gcc-aarch64-linux-gnu
+        sudo apt-get install -y git curl clang llvm lld flex bison bc python3 libssl-dev repo libelf-dev gcc-aarch64-linux-gnu dwarves
 
     - name: Sync kernel source
       run: |
@@ -31,8 +31,8 @@ jobs:
         git clone --depth 1 https://github.com/rifsxd/KernelSU-Next.git -b dev
         cd common
         bash ../KernelSU-Next/kernel/setup.sh
-        # Directly fix the macro in the source file - replace with no-op
-        sed -i 's/caches_clean_inval_pou/(void)caches_clean_inval_pou/' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
+        # Fix: cast to void to suppress -Wunused-value
+        sed -i 's/#define ksu_flush_icache(start, end) caches_clean_inval_pou/#define ksu_flush_icache(start, end) do { (void)caches_clean_inval_pou; } while (0)/' drivers/kernelsu/hook/arm64/patch_memory.c 2>/dev/null || true
 
     - name: Apply SuSFS
       run: |
