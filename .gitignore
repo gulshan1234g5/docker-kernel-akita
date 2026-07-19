@@ -2,3 +2,13 @@
 kernel/
 out/
 *.img
+KernelSU-Next/
+susfs4ksu/
+build/
+prebuilts/
+tools/
+common-modules/
+common/
+external/
+WORKSPACE
+build.log
